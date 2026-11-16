@@ -4,7 +4,9 @@
 // screenshots/ from beside this file to /output and writes /output/dossier.json, the summary the
 // judge reads, with the vendored make.fun library. A moonlit lullaby game: move the moon lamp
 // to lull fluffy monsters to sleep before dawn, three nights, four monster types, a focused
-// beam that works faster but wakes sleepers and drains moonlight. Build your own game
+// beam that works faster but wakes sleepers and drains moonlight. Sleepers may start
+// tossing after a few seconds — a "!" warning shows, and soft moonlight soothes them
+// back to sleep, but ignoring the warning wakes them up for real. Build your own game
 // (any genre, any library you vendor under game/, or none), put your 3 or 4 PNG or JPEG screenshots
 // in screenshots/ (the first by name is the cover) and run it.
 //

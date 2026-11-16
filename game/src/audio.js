@@ -53,6 +53,16 @@ export function createAudio() {
     wake() {
       tone(180, 0.25, 'triangle', 0.12);
     },
+    /** A soft worried blip when a sleeper starts tossing. */
+    stir() {
+      tone(392, 0.18, 'sine', 0.1);
+      tone(392, 0.18, 'sine', 0.1, 0.16);
+    },
+    /** A gentle lullaby note when soft light soothes a tossing sleeper. */
+    soothe() {
+      tone(784, 0.4, 'sine', 0.1);
+      tone(1047, 0.5, 'sine', 0.08, 0.1);
+    },
     clear() {
       tone(523, 0.4, 'sine', 0.12);
       tone(659, 0.4, 'sine', 0.12, 0.12);

@@ -7,17 +7,21 @@ import { EVENT_CLEAR, EVENT_OVER } from './world.js';
 import { SCREEN_CLEAR, SCREEN_OVER, SCREEN_PLAY, SCREEN_TITLE, SCREEN_WIN } from './render.js';
 
 const START_SECONDS = 6;
-const PLAY_SECONDS = 13;
+const PLAY_SECONDS = 30;
 const LIMIT_SECONDS = 600;
 
-/** The awake monster closest to sleep — the one the lamp should finish first. */
+/** A tossing sleeper first — the lamp must soothe it with soft light only,
+ * never the beam — then the awake monster closest to sleep. */
 function targetMonster(state) {
+  for (const monster of state.monsters) {
+    if (monster.active && monster.asleep && monster.stirring > 0) return { monster, soothe: true };
+  }
   let best = null;
   for (const monster of state.monsters) {
     if (!monster.active || monster.asleep) continue;
     if (best === null || monster.sleep > best.sleep) best = monster;
   }
-  return best;
+  return best === null ? null : { monster: best, soothe: false };
 }
 
 /** True when an asleep monster sits inside the beam's reach of the lamp. */
@@ -35,11 +39,12 @@ function sleeperInBeam(state) {
 /** One autopilot step: drift the lamp toward its target, focus only when it is safe. */
 function autopilotStep(world, dt) {
   const state = world.state;
-  const target = targetMonster(state);
+  const picked = targetMonster(state);
   const lamp = state.lamp;
   let mx = lamp.x;
   let my = lamp.y;
   let focus = false;
+  const target = picked === null ? null : picked.monster;
   if (target) {
     const dx = target.x - lamp.x;
     const dy = target.y - lamp.y;
@@ -52,7 +57,8 @@ function autopilotStep(world, dt) {
       mx = target.x;
       my = target.y;
     }
-    focus = dist < 70 && !sleeperInBeam(state);
+    // A tossing sleeper gets soft light only; anyone else gets the beam when close.
+    focus = !picked.soothe && dist < 70 && !sleeperInBeam(state);
   }
   return world.step(dt, { mx, my, focus, moveX: 0, moveY: 0 });
 }
@@ -86,6 +92,12 @@ export function stageShot(name, world) {
       break;
     }
     if (events & EVENT_OVER) break;
+    // The play frame should show the room busy and the new mechanic visible:
+    // at least two asleep and one tossing, so the "!" warning is in the shot.
+    if (name === 'play') {
+      const stirring = world.state.monsters.some((m) => m.active && m.stirring > 0);
+      if (stirring && world.state.asleep >= 2) break;
+    }
   }
   if (cleared) return { screen: SCREEN_CLEAR, best: world.state.score };
   // The frame should show the room busy: top the lamp up near a drowsy monster.

@@ -2,11 +2,12 @@
 // and whether the beam is on, the world advances one fixed step and reports what
 // happened as event flags. A monster is awake until its sleepiness reaches 100,
 // then it lies down and stays asleep — unless the focused beam hits it, which wakes
-// it up grumpy. The night ends when enough monsters are asleep (clear) or the
-// dawn timer runs out (over).
+// it up grumpy. A sleeper may also start tossing after a few seconds: a "!" warning
+// shows, and soft moonlight soothes it back to sleep, but ignoring it wakes it up.
+// The night ends when enough monsters are asleep (clear) or the dawn timer runs out (over).
 import {
   DECAY, ENERGY, FIELD, GAIN, KINDS, LAMP, NIGHTS, POOL_SIZE, ROOM,
-  SCORE, STEP, WAKE_SLEEP, WANDER, WANDER_TURN,
+  SCORE, STEP, STIR, WAKE_SLEEP, WANDER, WANDER_TURN,
 } from './config.js';
 
 export const EVENT_NONE = 0;
@@ -54,7 +55,7 @@ export function createWorld(random) {
       active: false, kind: 0, x: 0, y: 0, radius: 34,
       vx: 0, vy: 0, turnIn: 0, sleep: 0, asleep: false,
       grumpy: 0, phase: random() * Math.PI * 2, bob: 0,
-      woken: 0,
+      woken: 0, stirIn: 0, stirring: 0,
     });
   }
 
@@ -71,6 +72,8 @@ export function createWorld(random) {
     monster.vx = 0;
     monster.vy = 0;
     monster.woken = 0;
+    monster.stirIn = 0;
+    monster.stirring = 0;
     monster.active = true;
     void night;
   }
@@ -95,6 +98,20 @@ export function createWorld(random) {
     state.puffs.length = 0;
     for (const monster of state.monsters) monster.active = false;
     for (let index = 0; index < setup.monsters; index += 1) placeMonster(state.monsters[index], night);
+  }
+
+  /** Wake a sleeper up for real: grumpy, sleep back to WAKE_SLEEP, combo lost. */
+  function wakeUp(monster) {
+    monster.asleep = false;
+    monster.sleep = WAKE_SLEEP;
+    monster.grumpy = 2;
+    monster.woken += 1;
+    monster.stirring = 0;
+    state.asleep -= 1;
+    state.combo = 0;
+    state.score = Math.max(0, state.score - SCORE.wakePenalty);
+    state.events.push({ type: 'wake', x: monster.x, y: monster.y });
+    return EVENT_WAKE;
   }
 
   /** The lamp's control for one step: mouse position, beam held, arrow-key drift. */
@@ -136,18 +153,35 @@ export function createWorld(random) {
       const inSoft = dist < LAMP.softRadius + monster.radius * 0.5;
 
       if (monster.asleep) {
-        // Only the focused beam can wake a sleeper — and it wakes them grumpy.
-        if (inBeam) {
-          monster.asleep = false;
-          monster.sleep = WAKE_SLEEP;
-          monster.grumpy = 2;
-          monster.woken += 1;
-          state.asleep -= 1;
-          state.combo = 0;
-          state.score = Math.max(0, state.score - SCORE.wakePenalty);
-          events |= EVENT_WAKE;
-          state.events.push({ type: 'wake', x: monster.x, y: monster.y });
+        // Restless stirring: after a few seconds asleep, a sleeper may start
+        // tossing. Soft moonlight soothes it back to deep sleep; the harsh
+        // beam still wakes it, and ignoring the warning wakes it for real.
+        if (monster.stirring > 0) {
+          if (inBeam) {
+            events |= wakeUp(monster);
+          } else if (inSoft) {
+            monster.stirring = 0;
+            monster.sleep = 100;
+            monster.stirIn = STIR.minDelay + random() * (STIR.maxDelay - STIR.minDelay);
+            state.events.push({ type: 'soothe', x: monster.x, y: monster.y });
+          } else {
+            monster.stirring -= dt;
+            if (monster.stirring <= 0) events |= wakeUp(monster);
+          }
+          continue;
         }
+        monster.stirIn -= dt;
+        if (monster.stirIn <= 0) {
+          const stirringNow = state.monsters.filter((m) => m.active && m.stirring > 0).length;
+          if (stirringNow < STIR.maxAtOnce && random() < STIR.chance) {
+            monster.stirring = STIR.warn;
+            state.events.push({ type: 'stir', x: monster.x, y: monster.y });
+          } else {
+            monster.stirIn = STIR.minDelay + random() * (STIR.maxDelay - STIR.minDelay);
+          }
+        }
+        // Only the focused beam can wake a sleeper — and it wakes them grumpy.
+        if (inBeam) events |= wakeUp(monster);
         continue;
       }
 
@@ -177,6 +211,9 @@ export function createWorld(random) {
         monster.asleep = true;
         monster.vx = 0;
         monster.vy = 0;
+        // It may start tossing after a few seconds of deep sleep.
+        monster.stirIn = STIR.minDelay + random() * (STIR.maxDelay - STIR.minDelay);
+        monster.stirring = 0;
         state.asleep += 1;
         state.combo += 1;
         state.bestCombo = Math.max(state.bestCombo, state.combo);
@@ -187,9 +224,9 @@ export function createWorld(random) {
       }
     }
 
-    // "Zzz" puffs drift up from sleepers; they are cosmetic and capped.
+    // "Zzz" puffs drift up from sleepers — a tossing sleeper shows a "?" instead.
     for (const monster of state.monsters) {
-      if (monster.active && monster.asleep && random() < dt * 1.2 && state.puffs.length < 24) {
+      if (monster.active && monster.asleep && monster.stirring <= 0 && random() < dt * 1.2 && state.puffs.length < 24) {
         state.puffs.push({ x: monster.x + 18, y: monster.y - monster.radius - 6, life: 1.6, max: 1.6 });
       }
     }

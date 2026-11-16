@@ -17,12 +17,14 @@ export const NIGHTS = [
   { monsters: 7, target: 6, seconds: 65 },
 ];
 
-/** The four monster kinds: body colour, belly, ear shape and how fast each one dozes off. */
+/** The four monster kinds: body colour, belly, ear shape and how fast each one dozes off.
+ * Each kind also has a generated portrait under game/assets/, drawn as the monster's
+ * body; the code-drawn version stays as the fallback if the picture fails to load. */
 export const KINDS = [
-  { id: 'momo', name: 'Momo', body: '#ffb3c8', belly: '#ffe3ec', ear: 'round', sleepRate: 1.0 },
-  { id: 'pea', name: 'Pea', body: '#a8e6a1', belly: '#e2f7df', ear: 'leaf', sleepRate: 1.15 },
-  { id: 'lulu', name: 'Lulu', body: '#cdb4f6', belly: '#ece4fb', ear: 'horn', sleepRate: 0.9 },
-  { id: 'pip', name: 'Pip', body: '#ffc98a', belly: '#ffedd6', ear: 'flop', sleepRate: 1.05 },
+  { id: 'momo', name: 'Momo', body: '#ffb3c8', belly: '#ffe3ec', ear: 'round', sleepRate: 1.0, image: 'assets/momo.jpg' },
+  { id: 'pea', name: 'Pea', body: '#a8e6a1', belly: '#e2f7df', ear: 'leaf', sleepRate: 1.15, image: 'assets/pea.jpg' },
+  { id: 'lulu', name: 'Lulu', body: '#cdb4f6', belly: '#ece4fb', ear: 'horn', sleepRate: 0.9, image: 'assets/lulu.jpg' },
+  { id: 'pip', name: 'Pip', body: '#ffc98a', belly: '#ffedd6', ear: 'flop', sleepRate: 1.05, image: 'assets/pip.jpg' },
 ];
 
 /** Wandering room bounds (the rug area, below the window). */
@@ -32,7 +34,7 @@ export const ROOM = { left: 70, right: 1210, top: 250, bottom: 580 };
 export const LAMP = { softRadius: 185, beamRadius: 78, keySpeed: 760 };
 
 /** Sleepiness gained per second inside the soft light / the focused beam. */
-export const GAIN = { soft: 6, beam: 26 };
+export const GAIN = { soft: 5, beam: 20 };
 /** Sleepiness lost per second while an awake monster stands in the dark. */
 export const DECAY = 0.7;
 /** Sleepiness an asleep monster keeps: only a focused beam can wake one. */
@@ -40,6 +42,12 @@ export const WAKE_SLEEP = 45;
 
 /** Moon energy: 100 at most, drained by the beam, refilled while the beam is off. */
 export const ENERGY = { max: 100, drain: 13, regen: 7, rearm: 30 };
+
+/** Restless stirring: a sleeper may start tossing after a few seconds asleep.
+ * A "!" warning shows for a few seconds; soft moonlight soothes it back to deep
+ * sleep, but if the warning runs out the monster wakes up for real. Only a couple
+ * stir at once, so a good player can keep up — but never just park the lamp. */
+export const STIR = { minDelay: 3, maxDelay: 7, chance: 0.65, warn: 3.0, maxAtOnce: 2 };
 
 /** Wandering speed on night 1, and how much faster each later night is. */
 export const WANDER = { base: 16, perNight: 5, max: 34 };

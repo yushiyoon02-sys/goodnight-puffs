@@ -2,7 +2,7 @@
 // the moon lamp's glow and beam, the HUD, and the title / clear / win / over screens.
 // The game is a fixed 1280x720 logical stage, scaled to the window, so the layout
 // never depends on the screen size.
-import { FIELD, KINDS, LAMP, NIGHTS, PALETTE } from './config.js';
+import { FIELD, KINDS, LAMP, NIGHTS, PALETTE, STIR } from './config.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -35,22 +35,82 @@ function bar(ctx, x, y, w, h, fraction, fill, back) {
 export function createRenderer(canvas) {
   const ctx = canvas.getContext('2d');
 
+  // Generated pictures under game/assets/: a full night-room scene, a sleepy
+  // moon, and one portrait per monster kind. Every one has a code-drawn
+  // fallback: if a picture fails to load, the room and monsters are drawn
+  // in code exactly as before, so the game never depends on the files.
+  const IMAGES = {
+    background: 'assets/background.jpg',
+    moon: 'assets/moon.jpg',
+    momo: 'assets/momo.jpg',
+    pea: 'assets/pea.jpg',
+    lulu: 'assets/lulu.jpg',
+    pip: 'assets/pip.jpg',
+  };
+  const images = {};
+  const whenImagesReady = Promise.all(Object.entries(IMAGES).map(([key, src]) => new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => { images[key] = img; resolve(); };
+    img.onerror = () => resolve();
+    img.src = src;
+  })));
+
+  function drawImageRound(img, x, y, r) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(img, x - r, y - r, r * 2, r * 2);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   function drawRoom(state, time) {
-    // Night sky, twinkling stars and the window with its moon.
-    const sky = ctx.createLinearGradient(0, 0, 0, 420);
-    sky.addColorStop(0, PALETTE.skyTop);
-    sky.addColorStop(1, PALETTE.skyBottom);
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, FIELD.width, 420);
-    for (const star of state.stars) {
-      const twinkle = 0.45 + 0.55 * Math.abs(Math.sin(time * star.speed + star.phase));
-      ctx.globalAlpha = twinkle;
-      ctx.fillStyle = '#fffbe8';
+    if (images.background) {
+      ctx.drawImage(images.background, 0, 0, FIELD.width, FIELD.height);
+    } else {
+      // Night sky, twinkling stars and the floor with its rug, drawn in code.
+      const sky = ctx.createLinearGradient(0, 0, 0, 420);
+      sky.addColorStop(0, PALETTE.skyTop);
+      sky.addColorStop(1, PALETTE.skyBottom);
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, FIELD.width, 420);
+      for (const star of state.stars) {
+        const twinkle = 0.45 + 0.55 * Math.abs(Math.sin(time * star.speed + star.phase));
+        ctx.globalAlpha = twinkle;
+        ctx.fillStyle = '#fffbe8';
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // Floor and the big round rug the monsters wander on.
+      ctx.fillStyle = PALETTE.floor;
+      ctx.fillRect(0, 420, FIELD.width, 300);
+      ctx.fillStyle = PALETTE.rug;
       ctx.beginPath();
-      ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+      ctx.ellipse(640, 470, 600, 130, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.strokeStyle = PALETTE.rugEdge;
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.ellipse(640, 470, 560, 108, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      // Three little beds along the back wall, where sleepers dream.
+      for (let index = 0; index < 3; index += 1) {
+        const x = 470 + index * 190;
+        ctx.fillStyle = '#7a5a9e';
+        roundRect(ctx, x, 396, 130, 34, 12);
+        ctx.fill();
+        ctx.fillStyle = '#f2e3c9';
+        roundRect(ctx, x + 8, 384, 114, 26, 10);
+        ctx.fill();
+      }
     }
-    ctx.globalAlpha = 1;
     // Window, top right and small, with a sleepy moon in it — clear of the centred
     // title above and the HUD bar below it.
     ctx.fillStyle = PALETTE.windowFrame;
@@ -59,16 +119,25 @@ export function createRenderer(canvas) {
     ctx.fillStyle = PALETTE.window;
     roundRect(ctx, 1020, 98, 220, 130, 9);
     ctx.fill();
-    ctx.fillStyle = '#ffe9a8';
-    ctx.beginPath();
-    ctx.arc(1130, 163, 40, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#f2cd6e';
-    ctx.beginPath();
-    ctx.arc(1115, 152, 7, 0, Math.PI * 2);
-    ctx.arc(1144, 174, 5, 0, Math.PI * 2);
-    ctx.arc(1138, 144, 4, 0, Math.PI * 2);
-    ctx.fill();
+    if (images.moon) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(1130, 163, 40, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.drawImage(images.moon, 1090, 123, 80, 80);
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#ffe9a8';
+      ctx.beginPath();
+      ctx.arc(1130, 163, 40, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#f2cd6e';
+      ctx.beginPath();
+      ctx.arc(1115, 152, 7, 0, Math.PI * 2);
+      ctx.arc(1144, 174, 5, 0, Math.PI * 2);
+      ctx.arc(1138, 144, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.strokeStyle = PALETTE.windowFrame;
     ctx.lineWidth = 7;
     ctx.beginPath();
@@ -77,37 +146,65 @@ export function createRenderer(canvas) {
     ctx.moveTo(1020, 163);
     ctx.lineTo(1240, 163);
     ctx.stroke();
-    // Floor and the big round rug the monsters wander on.
-    ctx.fillStyle = PALETTE.floor;
-    ctx.fillRect(0, 420, FIELD.width, 300);
-    ctx.fillStyle = PALETTE.rug;
-    ctx.beginPath();
-    ctx.ellipse(640, 470, 600, 130, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = PALETTE.rugEdge;
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.ellipse(640, 470, 560, 108, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    // Three little beds along the back wall, where sleepers dream.
-    for (let index = 0; index < 3; index += 1) {
-      const x = 470 + index * 190;
-      ctx.fillStyle = '#7a5a9e';
-      roundRect(ctx, x, 396, 130, 34, 12);
-      ctx.fill();
-      ctx.fillStyle = '#f2e3c9';
-      roundRect(ctx, x + 8, 384, 114, 26, 10);
-      ctx.fill();
-    }
   }
 
-  function drawMonster(monster, state) {
+  /** The warning over a tossing sleeper: a pulsing "!" badge, a draining bar
+   * that shows how long until it wakes up for real, and a "?" where its Zzz
+   * used to be. */
+  function drawStirring(monster, x, y, r, time) {
+    if (monster.stirring <= 0) return;
+    const w = r * 1.7;
+    bar(ctx, x - w / 2, y - r - 22, w, 9, monster.stirring / STIR.warn, '#ff9d9d', PALETTE.barBack);
+    const pulse = 1 + Math.sin(time * 6) * 0.12;
+    const by = y - r - 52;
+    const br = 15 * pulse;
+    ctx.fillStyle = '#ff5d5d';
+    ctx.beginPath();
+    ctx.arc(x, by, br, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(x, by, br, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = `bold ${Math.round(br * 1.3)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('!', x, by + 1);
+    ctx.fillStyle = '#cfe0ff';
+    ctx.font = 'bold 26px system-ui, sans-serif';
+    ctx.fillText('?', x + br + 10, by);
+    ctx.textAlign = 'left';
+  }
+
+  function drawMonster(monster, state, time) {
     const kind = KINDS[monster.kind];
     const squash = monster.asleep ? 0.72 : 1 + Math.sin(monster.phase) * 0.03;
     const bob = monster.asleep ? 0 : monster.bob;
-    const x = monster.x;
+    // A stirring sleeper tosses from side to side.
+    const shake = monster.stirring > 0 ? Math.sin(time * 28) * 3 : 0;
+    const x = monster.x + shake;
     const y = monster.y + bob;
     const r = monster.radius;
+
+    // The generated portrait, round-clipped like a badge; the code-drawn
+    // monster below stays as the fallback if the picture is missing.
+    const portrait = images[kind.id];
+    if (portrait) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(1, squash);
+      drawImageRound(portrait, 0, 0, r);
+      ctx.restore();
+      drawStirring(monster, x, y, r, time);
+      if (!monster.asleep) {
+        const w = r * 1.7;
+        bar(ctx, x - w / 2, y - r - 22, w, 9, monster.sleep / 100,
+          monster.sleep > 75 ? PALETTE.gold : '#b7e6a1', PALETTE.barBack);
+      }
+      return;
+    }
 
     // Ears, by kind.
     ctx.fillStyle = kind.body;
@@ -203,6 +300,7 @@ export function createRenderer(canvas) {
       bar(ctx, x - w / 2, y - r - 22, w, 9, monster.sleep / 100,
         monster.sleep > 75 ? PALETTE.gold : '#b7e6a1', PALETTE.barBack);
     }
+    drawStirring(monster, x, y, r, time);
   }
 
   function drawLamp(state) {
@@ -232,20 +330,24 @@ export function createRenderer(canvas) {
       ctx.stroke();
     }
     // The little moon itself.
-    ctx.fillStyle = '#fff3c4';
-    ctx.beginPath();
-    ctx.arc(lamp.x, lamp.y, 26, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = '#3a2b3d';
-    ctx.beginPath();
-    ctx.arc(lamp.x - 8, lamp.y - 3, 3, 0, Math.PI * 2);
-    ctx.arc(lamp.x + 8, lamp.y - 3, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#3a2b3d';
-    ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    ctx.arc(lamp.x, lamp.y + 4, 6, 0.15 * Math.PI, 0.85 * Math.PI);
-    ctx.stroke();
+    if (images.moon) {
+      drawImageRound(images.moon, lamp.x, lamp.y, 26);
+    } else {
+      ctx.fillStyle = '#fff3c4';
+      ctx.beginPath();
+      ctx.arc(lamp.x, lamp.y, 26, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#3a2b3d';
+      ctx.beginPath();
+      ctx.arc(lamp.x - 8, lamp.y - 3, 3, 0, Math.PI * 2);
+      ctx.arc(lamp.x + 8, lamp.y - 3, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#3a2b3d';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(lamp.x, lamp.y + 4, 6, 0.15 * Math.PI, 0.85 * Math.PI);
+      ctx.stroke();
+    }
   }
 
   function drawHud(state, best) {
@@ -313,7 +415,7 @@ export function createRenderer(canvas) {
     ctx.textAlign = 'left';
   }
 
-  function drawTitle(state, best) {
+  function drawTitle(state, best, time) {
     ctx.fillStyle = 'rgba(20, 16, 42, 0.55)';
     ctx.fillRect(0, 0, FIELD.width, FIELD.height);
     ctx.textAlign = 'center';
@@ -335,7 +437,7 @@ export function createRenderer(canvas) {
       monster.y = 315;
       monster.sleep = paradeSleep[index] ?? 50;
       monster.asleep = false;
-      drawMonster(monster, state);
+      drawMonster(monster, state, time);
       monster.x = savedX;
       monster.y = savedY;
       monster.sleep = savedSleep;
@@ -348,6 +450,7 @@ export function createRenderer(canvas) {
     ctx.fillText('Move the mouse to shine soft moonlight. Hold click for a focused beam —', 640, 452);
     ctx.fillText('it puts one monster to sleep fast, but wakes any sleeper it touches.', 640, 486);
     ctx.fillText('Put enough monsters to sleep before dawn. 3 nights, 4 kinds of puffs.', 640, 520);
+    ctx.fillText('A sleeper may toss and turn — shine soft light on them before they wake!', 640, 554);
     ctx.fillStyle = PALETTE.gold;
     ctx.font = 'bold 25px system-ui, sans-serif';
     ctx.fillText(`Night 1: ${NIGHTS[0].target} of ${NIGHTS[0].monsters} asleep in ${NIGHTS[0].seconds}s  ·  Best ${best}`, 640, 622);
@@ -358,6 +461,8 @@ export function createRenderer(canvas) {
   }
 
   return {
+    /** Resolves once every generated picture has loaded or failed to load. */
+    whenImagesReady,
     draw(state, screen, best, time) {
       const scale = Math.min(canvas.width / FIELD.width, canvas.height / FIELD.height);
       const offsetX = (canvas.width - FIELD.width * scale) / 2;
@@ -371,7 +476,7 @@ export function createRenderer(canvas) {
       // The title screen draws its own monster parade; the room's monsters stay hidden there.
       if (screen !== SCREEN_TITLE) {
         for (const monster of state.monsters) {
-          if (monster.active) drawMonster(monster, state);
+          if (monster.active) drawMonster(monster, state, time);
         }
       }
       // Floating Zzz puffs.
@@ -385,7 +490,7 @@ export function createRenderer(canvas) {
       if (screen === SCREEN_PLAY || screen === SCREEN_PAUSED) drawLamp(state);
       if (screen === SCREEN_PLAY || screen === SCREEN_PAUSED) drawHud(state, best);
 
-      if (screen === SCREEN_TITLE) drawTitle(state, best);
+      if (screen === SCREEN_TITLE) drawTitle(state, best, time);
       else if (screen === SCREEN_PAUSED) {
         panel('Paused', ['The monsters are waiting.', 'The moon is holding its light.'], PALETTE.hud);
       } else if (screen === SCREEN_CLEAR) {

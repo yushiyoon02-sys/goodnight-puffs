@@ -50,14 +50,17 @@ function saveBest(value) {
 
 function runShot(name) {
   const scene = stageShot(name, world);
-  let painted = 0;
-  function paint() {
-    renderer.draw(world.state, scene.screen, scene.best, 0);
-    painted += 1;
-    if (painted < 2) requestAnimationFrame(paint);
-    else window.__shotReady = true;
-  }
-  requestAnimationFrame(paint);
+  // The staged frame is only real once the generated pictures have loaded.
+  renderer.whenImagesReady.then(() => {
+    let painted = 0;
+    function paint() {
+      renderer.draw(world.state, scene.screen, scene.best, 0);
+      painted += 1;
+      if (painted < 2) requestAnimationFrame(paint);
+      else window.__shotReady = true;
+    }
+    requestAnimationFrame(paint);
+  });
 }
 
 function runGame() {
@@ -137,6 +140,10 @@ function runGame() {
     const events = world.step(STEP, input.control());
     if (events & EVENT_SLEEP) audio.sleep();
     if (events & EVENT_WAKE) audio.wake();
+    for (const event of world.state.events) {
+      if (event.type === 'stir') audio.stir();
+      else if (event.type === 'soothe') audio.soothe();
+    }
     if (events & EVENT_CLEAR) {
       audio.clear();
       if (world.state.night >= NIGHTS.length) endRun(true);
